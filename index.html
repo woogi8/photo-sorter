@@ -456,7 +456,7 @@ async function analyseImage(it){
 }
 function probeVideo(it){
   return new Promise(async res => {
-    const file = await it.handle.getFile();
+    let file; try{ file = await it.handle.getFile(); }catch{ res({dur:NaN, thumb:null}); return; }
     const v = document.createElement('video'); v.preload = 'metadata'; v.muted = true; v.playsInline = true;
     const url = URL.createObjectURL(file); let done = false;
     const finish = (dur, thumb) => { if(done) return; done = true; clearTimeout(timer); URL.revokeObjectURL(url); v.removeAttribute('src'); v.load(); res({dur, thumb}); };
@@ -472,6 +472,15 @@ async function analyseVideo(it){
   it.dur = dur;
   it.thumb = thumb || tileThumb(it.ext.toUpperCase(), '#C46686', true);
   it.mediaCat = !isFinite(dur) ? (dur === Infinity ? 'long' : 'broll') : dur < 10 ? 'quick' : dur < 60 ? 'broll' : 'long';
+}
+// "IMG_1 2.jpg", "report (1).pdf", "a - Copy.txt", "사진 복사본.jpg" look like copies of the original.
+const COPY_MARK = /(\s\(\d+\)|\s\d+|[\s_-]*-?\s*copy(\s*\d+)?|\s*\(copy\)|\s*복사본(\s*\d+)?|\s*사본)$/i;
+const looksLikeCopy = name => COPY_MARK.test(name.replace(/\.[^.]+$/, ''));
+function originalFirst(a, b){
+  return (looksLikeCopy(a.name) - looksLikeCopy(b.name))               // a clean name wins
+      || ((a.lastModified || Infinity) - (b.lastModified || Infinity))  // then the oldest
+      || (a.name.length - b.name.length)                                // then the shortest
+      || a.name.localeCompare(b.name, undefined, {numeric:true});
 }
 async function sha256(file){
   let buf;
@@ -489,11 +498,14 @@ async function sha256(file){
 const extTile = ext => tileThumb((ext || 'file').toUpperCase(), FCAT[fileCategory(ext)].color);
 function tileThumb(label, color, dark){
   const S = 96, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
-  x.fillStyle = dark ? '#2B2A27' : '#EDEAE2'; x.fillRect(0,0,S,S);
-  if(!dark){ x.fillStyle = '#fff'; x.fillRect(24,12,48,68); x.fillStyle = '#D8D4C8'; for(let i=0;i<6;i++) x.fillRect(31, 22 + i*8, i%3===2 ? 22 : 34, 3); }
-  x.fillStyle = color; x.fillRect(18, 62, 60, 20);
-  x.fillStyle = '#fff'; x.font = '600 12px DM Sans, system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.fillText((label || 'FILE').slice(0,5), 48, 72.5);
+  x.fillStyle = dark ? '#2B2A27' : color; x.fillRect(0,0,S,S);
+  // folded-corner page
+  x.fillStyle = 'rgba(255,255,255,.92)'; x.beginPath(); x.moveTo(22,10); x.lineTo(60,10); x.lineTo(76,26); x.lineTo(76,86); x.lineTo(22,86); x.closePath(); x.fill();
+  x.fillStyle = 'rgba(0,0,0,.12)'; x.beginPath(); x.moveTo(60,10); x.lineTo(60,26); x.lineTo(76,26); x.closePath(); x.fill();
+  const t = (label || 'FILE').slice(0,4);
+  x.fillStyle = dark ? '#2B2A27' : color; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = `700 ${t.length > 3 ? 17 : 21}px DM Sans, system-ui, sans-serif`;
+  x.fillText(t, 49, 58);
   return c.toDataURL('image/png');
 }
 const DEMO_PAINT = {
@@ -551,9 +563,10 @@ function buildDemoItems(){
 let stageBox = {cx:0, cy:0, w:1, h:1, R:1, scale:1}, layoutDirty = true;
 function measureLayout(){
   const r = stageEl.getBoundingClientRect();
-  const R = Math.min(r.width*.44, r.height*.42/TILT);
   const N = Math.max(1, state.sprites.length);
-  const size = clamp(R*2/Math.sqrt(N)*1.15, 14, 36);
+  const Rmax = Math.min(r.width*.44, r.height*.42/TILT);
+  const size = clamp(Rmax*2/Math.sqrt(N)*1.15, 14, N < 120 ? 52 : 36);
+  const R = Math.min(Rmax, Math.max(60, size*Math.sqrt(N)*.62));
   stageBox = {cx:r.left + r.width/2, cy:r.top + r.height/2 - 12, w:r.width, h:r.height, R, scale:size/40};
   for(const c of CATS){
     const g = c.gridEl.getBoundingClientRect();
@@ -735,17 +748,24 @@ async function loadFolder(root){
     if(!entries.length){ setCenter('No files here', 'This folder has no files directly inside it. Subfolders are ignored.'); setPhase('empty'); return; }
     const items = [];
     for(const e of entries){
-      const f = await e.handle.getFile(), ext = extOf(e.name);
-      items.push({name:e.name, handle:e.handle, ext, size:f.size, kind: IMG_EXT.has(ext) ? 'image' : VID_EXT.has(ext) ? 'video' : 'other'});
+      const ext = extOf(e.name); let f = null;
+      try{ f = await e.handle.getFile(); }catch(err){ console.warn('unreadable', e.name, err); }
+      items.push({name:e.name, handle:e.handle, ext, size: f ? f.size : 0, lastModified: f ? f.lastModified : 0, unreadable: !f,
+                  kind: !f ? 'other' : IMG_EXT.has(ext) ? 'image' : VID_EXT.has(ext) ? 'video' : 'other'});
     }
     // duplicates: only hash files that share a size with another file
     const bySize = new Map(); for(const it of items){ if(!bySize.has(it.size)) bySize.set(it.size, []); bySize.get(it.size).push(it); }
     const toHash = [...bySize.values()].filter(g => g.length > 1 && g[0].size > 0).flat();
     let hd = 0;
-    await pool(toHash, 2, async it => { if(!alive()) return; it.hash = await sha256(await it.handle.getFile()); hd++; setCenter('Checking for duplicates…', `${fmt(hd)} / ${fmt(toHash.length)} same-size files`, hd/toHash.length); });
+    await pool(toHash, 2, async it => { if(!alive()) return; try{ it.hash = await sha256(await it.handle.getFile()); }catch(err){ console.warn('hash failed', it.name, err); } hd++; setCenter('Checking for duplicates…', `${fmt(hd)} / ${fmt(toHash.length)} same-size files`, hd/toHash.length); });
     if(!alive()) return;
-    const seen = new Map();
-    for(const it of items) if(it.hash){ if(seen.has(it.hash)){ it.dupe = true; it.dupeOf = seen.get(it.hash); } else seen.set(it.hash, it); }
+    const byHash = new Map();
+    for(const it of items) if(it.hash){ if(!byHash.has(it.hash)) byHash.set(it.hash, []); byHash.get(it.hash).push(it); }
+    for(const group of byHash.values()){
+      if(group.length < 2) continue;
+      group.sort(originalFirst);
+      for(const it of group.slice(1)){ it.dupe = true; it.dupeOf = group[0]; }
+    }
     // classify
     const work = items.filter(i => !i.dupe); let done = 0;
     await pool(work, 4, async it => {
