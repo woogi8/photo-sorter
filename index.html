@@ -48,6 +48,14 @@ h1 em{font-style:italic;color:var(--clay-ink)}
 .btn.ghost{background:transparent;border-color:transparent}
 .btn.ghost:hover:not(:disabled){background:var(--line)}
 .btn svg{width:15px;height:15px}
+.seg{display:inline-flex;padding:3px;gap:2px;border:1px solid var(--line2);border-radius:11px;background:var(--line);height:36px;margin-right:6px}
+.seg button{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;border-radius:8px;padding:0 12px;font-weight:500;font-size:13px;color:var(--muted);cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
+.seg button svg{width:14px;height:14px}
+.seg button:hover:not(:disabled){color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(20,20,19,.1)}
+.seg button[aria-pressed="true"] svg{color:var(--clay)}
+.seg button:disabled{opacity:.45;cursor:default}
+.mode-note{font-size:12.5px;color:var(--muted);margin:6px 0 0}
 
 .stats{display:flex;gap:34px;flex-wrap:wrap;padding:18px 28px 4px}
 .stat .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -139,7 +147,7 @@ h1 em{font-style:italic;color:var(--clay-ink)}
   <div class="titlebar">
     <div class="dots"><i></i><i></i><i></i></div>
     <div class="path" id="pathText">photo-sorter / index.html</div>
-    <div class="keys"><span><kbd>Space</kbd> sort</span><span><kbd>R</kbd> replay</span></div>
+    <div class="keys"><span><kbd>1</kbd><kbd>2</kbd> mode</span><span><kbd>Space</kbd> sort</span><span><kbd>R</kbd> replay</span></div>
   </div>
 
   <section class="head">
@@ -149,8 +157,13 @@ h1 em{font-style:italic;color:var(--clay-ink)}
         Photo Sorter · runs in your browser, nothing uploaded
       </p>
       <h1>Sorting my <em id="folderName">Pictures</em> folder</h1>
+      <p class="mode-note" id="modeNote"></p>
     </div>
     <div class="toolbar">
+      <div class="seg" role="group" aria-label="Sort by">
+        <button id="modeMedia" data-mode="media" aria-pressed="true" title="Sort photos by colour & shape, videos by length (key: 1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>Images</button>
+        <button id="modeFiles" data-mode="files" aria-pressed="false" title="Sort every file by its extension (key: 2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>Files</button>
+      </div>
       <button class="btn" id="btnChoose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Choose folder</button>
       <button class="btn" id="btnDemo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>Demo</button>
       <button class="btn" id="btnReplay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Replay</button>
@@ -160,17 +173,14 @@ h1 em{font-style:italic;color:var(--clay-ink)}
 
   <section class="stats">
     <div class="stat"><div class="lbl">Total files</div><div class="val" id="sTotal">0</div></div>
-    <div class="stat"><div class="lbl">Photos</div><div class="val" id="sPhotos">0</div></div>
-    <div class="stat"><div class="lbl">Videos</div><div class="val" id="sVideos">0</div></div>
+    <div class="stat"><div class="lbl" id="lPhotos">Photos</div><div class="val" id="sPhotos">0</div></div>
+    <div class="stat"><div class="lbl" id="lVideos">Videos</div><div class="val" id="sVideos">0</div></div>
     <div class="stat"><div class="lbl">Duplicates</div><div class="val" id="sDupes">0</div></div>
     <div class="stat sep"><div class="lbl">Space in duplicates</div><div class="val" id="sSpace">0</div></div>
   </section>
 
   <main class="board">
-    <aside class="col">
-      <h2>Photos</h2>
-      <div class="cards" id="photoCards"></div>
-    </aside>
+    <aside class="col" id="colLeft"></aside>
 
     <section class="stage" id="stage">
       <div class="stage-center" id="stageCenter" hidden>
@@ -181,12 +191,7 @@ h1 em{font-style:italic;color:var(--clay-ink)}
       <div class="stage-label" id="stageLabel"></div>
     </section>
 
-    <aside class="col">
-      <h2>Videos</h2>
-      <div class="cards" id="videoCards"></div>
-      <h2>Cleanup</h2>
-      <div class="cards" id="cleanCards"></div>
-    </aside>
+    <aside class="col" id="colRight"></aside>
   </main>
 
   <footer class="statusbar">
@@ -221,7 +226,9 @@ h1 em{font-style:italic;color:var(--clay-ink)}
 <script>
 'use strict';
 /* ───────────── Categories ───────────── */
-const CATS = [
+// Two sorting modes share one scan. Each item stores a mediaCat (colour/length rules)
+// and a fileCat (extension rules); switching mode only re-points item.cat.
+const MEDIA_CATS = [
   {id:'screens',  group:'photos',  name:'Screenshots',    desc:'Flat UI, tall PNGs',        color:'#9C98C4', folder:['Photos','Screenshots']},
   {id:'night',    group:'photos',  name:'Night & moody',  desc:'Dark, low light',           color:'#4F5683', folder:['Photos','Night & moody']},
   {id:'golden',   group:'photos',  name:'Golden hour',    desc:'Warm ambers & oranges',     color:'#D4A27F', folder:['Photos','Golden hour']},
@@ -234,9 +241,34 @@ const CATS = [
   {id:'dupes',    group:'cleanup', name:'Duplicates',     desc:'Identical content · SHA-256',color:'#B0A48A', folder:['Duplicates'], wide:true},
   {id:'docs',     group:'cleanup', name:'Docs & other',   desc:'Everything that isn’t media',color:'#87867F', folder:['Docs & other'], wide:true},
 ];
-const CAT = Object.fromEntries(CATS.map(c => [c.id, c]));
 const IMG_EXT = new Set(['jpg','jpeg','jfif','png','gif','webp','bmp','avif','heic','heif','tif','tiff']);
 const VID_EXT = new Set(['mp4','mov','m4v','webm','mkv','avi','3gp','mts','m2ts','wmv']);
+const FILE_CATS = [
+  {id:'pdf',    group:'docs',  name:'PDFs',             desc:'.pdf',                    color:'#C9503C', folder:['Documents','PDFs'],          ext:['pdf']},
+  {id:'word',   group:'docs',  name:'Word & text',      desc:'doc · hwp · txt · md',    color:'#4C78B5', folder:['Documents','Word & text'],   ext:['doc','docx','dot','dotx','hwp','hwpx','odt','rtf','txt','md','pages','epub']},
+  {id:'sheet',  group:'docs',  name:'Spreadsheets',     desc:'xls · xlsx · csv',        color:'#5E8C52', folder:['Documents','Spreadsheets'],  ext:['xls','xlsx','xlsm','xlsb','csv','tsv','ods','numbers']},
+  {id:'slides', group:'docs',  name:'Presentations',    desc:'ppt · pptx · key',        color:'#D97757', folder:['Documents','Presentations'], ext:['ppt','pptx','pps','ppsx','key','odp']},
+  {id:'code',   group:'docs',  name:'Code & data',      desc:'js · py · json · html',   color:'#8A6FB0', folder:['Code & data'],               ext:['js','mjs','ts','tsx','jsx','py','ipynb','java','c','h','cpp','cs','go','rs','rb','php','swift','kt','sh','ps1','html','htm','css','scss','json','xml','yml','yaml','toml','ini','sql','db','sqlite','r','m','vb']},
+  {id:'design', group:'docs',  name:'Design',           desc:'psd · ai · fig · svg',    color:'#C46686', folder:['Design'],                    ext:['psd','ai','fig','sketch','xd','indd','eps','svg','afdesign','afphoto','dwg','dxf','blend','fbx','obj','stl']},
+  {id:'img',    group:'media', name:'Images',           desc:'jpg · png · heic · webp', color:'#6A9BCC', folder:['Images'],                    ext:[...IMG_EXT, 'raw','cr2','cr3','nef','arw','dng','ico']},
+  {id:'vid',    group:'media', name:'Videos',           desc:'mp4 · mov · mkv',         color:'#4F5683', folder:['Videos'],                    ext:[...VID_EXT, 'flv','mpg','mpeg','vob']},
+  {id:'audio',  group:'media', name:'Audio',            desc:'mp3 · wav · m4a · flac',  color:'#D4A27F', folder:['Audio'],                     ext:['mp3','wav','m4a','aac','flac','ogg','oga','wma','aiff','aif','opus','mid','midi'], wide:true},
+  {id:'archive',group:'other', name:'Archives',         desc:'zip · rar · 7z',          color:'#B08A55', folder:['Archives'],                  ext:['zip','rar','7z','tar','gz','tgz','bz2','xz','zst','iso','cab','alz','egg']},
+  {id:'app',    group:'other', name:'Installers & apps',desc:'exe · msi · dmg · apk',   color:'#9C98C4', folder:['Installers & apps'],         ext:['exe','msi','dmg','pkg','apk','appx','msix','deb','rpm','bat','cmd','jar','appimage']},
+  {id:'dupes',  group:'other', name:'Duplicates',       desc:'Identical · SHA-256',     color:'#B0A48A', folder:['Duplicates']},
+  {id:'misc',   group:'other', name:'Everything else',  desc:'Unknown extensions',      color:'#87867F', folder:['Other']},
+];
+const FILE_EXT_CAT = new Map(FILE_CATS.flatMap(c => (c.ext || []).map(e => [e, c.id])));
+const FCAT = Object.fromEntries(FILE_CATS.map(c => [c.id, c]));
+const fileCategory = ext => FILE_EXT_CAT.get(ext) || 'misc';
+const MODES = {
+  media: {cats:MEDIA_CATS, left:[['photos','Photos']], right:[['videos','Videos'],['cleanup','Cleanup']],
+          stats:['Photos','Videos'], demoName:'Pictures', note:'Photos by colour & shape · videos by length · duplicates by SHA-256'},
+  files: {cats:FILE_CATS,  left:[['docs','Documents']], right:[['media','Media'],['other','Other']],
+          stats:['Documents','Media'], demoName:'Downloads', note:'Every file by its extension · duplicates by SHA-256'},
+};
+const DOC_GROUP = new Set(['pdf','word','sheet','slides']), MEDIA_GROUP = new Set(['img','vid','audio']);
+let CATS = MEDIA_CATS, CAT = Object.fromEntries(CATS.map(c => [c.id, c]));
 const SKIP = /^(\.|desktop\.ini$|thumbs\.db$|~\$)/i;
 const MAX_SPRITES = 600;
 const HASH_FULL_MAX = 768 * 1024 * 1024;
@@ -248,7 +280,7 @@ const SLOT_W = 20, SLOT_H = 22; // card thumbnail slot incl. gap
 
 const $ = s => document.querySelector(s);
 const stageEl = $('#stage'), layer = $('#sprites');
-const state = { mode:'empty', root:null, items:[], sprites:[], phase:'idle', organised:false, asked:false, undoLog:null, scanToken:0 };
+const state = { sortMode:'media', mode:'empty', root:null, items:[], sprites:[], phase:'idle', organised:false, asked:false, undoLog:null, scanToken:0 };
 
 /* ───────────── Utilities ───────────── */
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -277,7 +309,15 @@ function countTo(el, to, fmtFn = fmt){
 
 /* ───────────── Cards ───────────── */
 function buildCards(){
-  const groups = {photos:$('#photoCards'), videos:$('#videoCards'), cleanup:$('#cleanCards')};
+  const M = MODES[state.sortMode], groups = {};
+  for(const [side, defs] of [['#colLeft', M.left], ['#colRight', M.right]]){
+    const col = $(side); col.innerHTML = '';
+    for(const [gid, title] of defs){
+      const h = document.createElement('h2'); h.textContent = title;
+      const g = document.createElement('div'); g.className = 'cards';
+      col.append(h, g); groups[gid] = g;
+    }
+  }
   for(const c of CATS){
     const el = document.createElement('div'); el.className = 'card' + (c.wide ? ' wide' : ''); el.style.setProperty('--c', c.color);
     el.innerHTML = `<div class="top"><div class="name"><i></i><span></span></div><div class="count">0</div></div><div class="desc"></div><div class="grid"></div>`;
@@ -294,8 +334,9 @@ function cardCount(c){ return c.arrived >= c.spriteTotal ? c.total : Math.round(
 /* ───────────── Stats & UI ───────────── */
 function setStats(){
   const it = state.items;
-  const photos = it.filter(i => i.kind === 'image' && i.cat !== 'dupes').length;
-  const videos = it.filter(i => i.kind === 'video' && i.cat !== 'dupes').length;
+  const files = state.sortMode === 'files';
+  const photos = it.filter(i => i.cat !== 'dupes' && (files ? DOC_GROUP.has(i.fileCat) : i.kind === 'image')).length;
+  const videos = it.filter(i => i.cat !== 'dupes' && (files ? MEDIA_GROUP.has(i.fileCat) : i.kind === 'video')).length;
   const dupes = it.filter(i => i.cat === 'dupes');
   const bytes = dupes.reduce((s,i) => s + (i.size||0), 0);
   countTo($('#sTotal'), it.length, v => fmt(Math.round(v)));
@@ -305,7 +346,34 @@ function setStats(){
   countTo($('#sSpace'), bytes, (v, end) => { const [n,u] = fmtBytes(end ? bytes : v); return `${n}<small>${u}</small>`; });
   for(const c of CATS) c.total = it.filter(i => i.cat === c.id).length;
 }
-function setFolderName(n){ $('#folderName').textContent = n; $('#pathText').textContent = state.mode === 'demo' ? 'photo-sorter / demo — fake photos' : `photo-sorter / ${n}`; }
+function setFolderName(n){ $('#folderName').textContent = n; $('#pathText').textContent = state.mode === 'demo' ? 'photo-sorter / demo — fake files' : `photo-sorter / ${n}`; }
+
+/* ───────────── Sort mode (Images ⇄ Files) ───────────── */
+function applyCats(){ for(const it of state.items) it.cat = it.dupe ? 'dupes' : state.sortMode === 'files' ? it.fileCat : it.mediaCat; }
+function useMode(m){
+  state.sortMode = m;
+  try{ localStorage.setItem('photo-sorter-mode', m); }catch{}
+  const M = MODES[m];
+  CATS = M.cats; CAT = Object.fromEntries(CATS.map(c => [c.id, c]));
+  buildCards();
+  $('#lPhotos').textContent = M.stats[0]; $('#lVideos').textContent = M.stats[1];
+  $('#modeNote').textContent = M.note;
+  for(const b of document.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+  layoutDirty = true;
+}
+function switchMode(m){
+  if(m === state.sortMode || !MODES[m]) return;
+  if(!['ready','sorted','empty','idle'].includes(state.phase)){ toast('Wait for the current step to finish, then switch.'); return; }
+  useMode(m);
+  if(state.mode === 'demo') setFolderName(MODES[m].demoName);
+  if(state.items.length){
+    applyCats(); setStats(); buildPile(); state.asked = false;
+    $('#statusText').textContent = m === 'files'
+      ? `Sorting ${fmt(state.items.length)} files by extension. Press Space.`
+      : `Sorting ${fmt(state.items.length)} files by colour & length. Press Space.`;
+    setPhase('ready');
+  } else refreshUI();
+}
 function setCenter(title, sub, prog){
   const c = $('#stageCenter');
   if(title == null){ c.hidden = true; return; }
@@ -320,6 +388,8 @@ function refreshUI(){
   $('#btnChoose').disabled = $('#btnDemo').disabled = (p === 'organising' || p === 'undoing');
   $('#btnOrganise').hidden = !(state.mode === 'folder' && p === 'sorted' && !state.organised && state.items.length);
   $('#btnUndo').hidden = !state.undoLog;
+  const lockMode = !['ready','sorted','empty','idle'].includes(p);
+  for(const b of document.querySelectorAll('.seg button')) b.disabled = lockMode;
   updateStageLabel();
 }
 function updateStageLabel(){
@@ -379,9 +449,9 @@ async function decodeImage(file){
 async function analyseImage(it){
   const file = await it.handle.getFile();
   const im = await decodeImage(file);
-  if(!im || !im.w){ it.cat = /screen/i.test(it.name) ? 'screens' : 'everyday'; it.thumb = tileThumb(it.ext.toUpperCase(), '#D4A27F'); return; }
+  if(!im || !im.w){ it.mediaCat = /screen/i.test(it.name) ? 'screens' : 'everyday'; it.thumb = tileThumb(it.ext.toUpperCase(), '#D4A27F'); return; }
   it.thumb = makeThumb(im.src, im.w, im.h);
-  it.cat = classifyPhoto(it, analysePixels(im.src, im.w, im.h));
+  it.mediaCat = classifyPhoto(it, analysePixels(im.src, im.w, im.h));
   im.close();
 }
 function probeVideo(it){
@@ -401,7 +471,7 @@ async function analyseVideo(it){
   const {dur, thumb} = await probeVideo(it);
   it.dur = dur;
   it.thumb = thumb || tileThumb(it.ext.toUpperCase(), '#C46686', true);
-  it.cat = !isFinite(dur) ? (dur === Infinity ? 'long' : 'broll') : dur < 10 ? 'quick' : dur < 60 ? 'broll' : 'long';
+  it.mediaCat = !isFinite(dur) ? (dur === Infinity ? 'long' : 'broll') : dur < 10 ? 'quick' : dur < 60 ? 'broll' : 'long';
 }
 async function sha256(file){
   let buf;
@@ -416,7 +486,7 @@ async function sha256(file){
 }
 
 /* ───────────── Generated tiles (docs, fallbacks, demo) ───────────── */
-const DOC_COLORS = {pdf:'#C9503C', doc:'#4C78B5', docx:'#4C78B5', xls:'#5E8C52', xlsx:'#5E8C52', csv:'#5E8C52', ppt:'#D97757', pptx:'#D97757', txt:'#87867F', md:'#87867F', zip:'#B08A55', rar:'#B08A55'};
+const extTile = ext => tileThumb((ext || 'file').toUpperCase(), FCAT[fileCategory(ext)].color);
 function tileThumb(label, color, dark){
   const S = 96, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
   x.fillStyle = dark ? '#2B2A27' : '#EDEAE2'; x.fillRect(0,0,S,S);
@@ -458,18 +528,22 @@ function buildDemoItems(){
   const counts = {screens:38, night:41, golden:36, sky:44, portrait:47, everyday:62};
   let n = 1000;
   for(const [cat, k] of Object.entries(counts)) for(let i=0;i<k;i++){
-    const ext = cat === 'screens' ? 'png' : 'jpg';
-    items.push({name: cat === 'screens' ? `Screenshot ${n++}.png` : `IMG_${n++}.${ext.toUpperCase()}`, kind:'image', ext, cat, size: 1.5e6 + r()*3e6, thumb: demoThumb(cat, r)});
+    const ext = cat === 'screens' ? 'png' : r() < .12 ? 'webp' : 'jpg';
+    items.push({name: cat === 'screens' ? `Screenshot ${n++}.png` : `IMG_${n++}.${ext}`, kind:'image', ext, mediaCat:cat, size: 1.5e6 + r()*3e6, thumb: demoThumb(cat, r)});
   }
   const vids = {quick:[21,1,9], broll:[18,10,60], long:[9,60,600]};
   for(const [cat, [k, a, b]] of Object.entries(vids)) for(let i=0;i<k;i++){
-    const kind = ['sky','golden','everyday','night','portrait'][Math.floor(r()*5)];
-    items.push({name:`VID_${n++}.MP4`, kind:'video', ext:'mp4', cat, dur: a + r()*(b-a), size: 8e6 + r()*9e7, thumb: demoThumb(kind, r)});
+    const kind = ['sky','golden','everyday','night','portrait'][Math.floor(r()*5)], ext = r() < .3 ? 'mov' : 'mp4';
+    items.push({name:`VID_${n++}.${ext}`, kind:'video', ext, mediaCat:cat, dur: a + r()*(b-a), size: 8e6 + r()*9e7, thumb: demoThumb(kind, r)});
   }
-  const photos = items.filter(i => i.kind === 'image');
-  for(let i=0;i<34;i++){ const o = photos[Math.floor(r()*photos.length)]; items.push({...o, name:o.name.replace('.', ' 2.'), cat:'dupes'}); }
-  const docs = ['pdf','docx','xlsx','txt','pptx','zip','csv','pdf','md','pdf','docx','txt'];
-  docs.forEach((e, i) => items.push({name:`Document ${i+1}.${e}`, kind:'other', ext:e, cat:'docs', size: 2e5 + r()*2e6, thumb: tileThumb(e.toUpperCase(), DOC_COLORS[e] || '#9C98C4')}));
+  // a realistic "Downloads" mix so the Files mode has something to show
+  const others = {pdf:14, docx:7, hwp:4, txt:5, md:2, xlsx:7, csv:4, pptx:5, key:1, js:3, py:3, json:3, html:2,
+                  psd:3, fig:2, svg:2, ai:1, mp3:9, wav:3, m4a:3, flac:1, zip:7, '7z':2, rar:1, exe:4, msi:2, dmg:1, apk:1, bak:2, log:2, torrent:1};
+  for(const [e, k] of Object.entries(others)) for(let i=0;i<k;i++)
+    items.push({name:`File_${n++}.${e}`, kind:'other', ext:e, mediaCat:'docs', size: 5e4 + r()*8e6, thumb: extTile(e)});
+  const originals = items.filter(i => i.kind === 'image' || i.ext === 'pdf' || i.ext === 'zip');
+  for(let i=0;i<38;i++){ const o = originals[Math.floor(r()*originals.length)]; items.push({...o, name:o.name.replace('.', ' (copy).'), dupe:true}); }
+  for(const it of items) it.fileCat = fileCategory(it.ext);
   return items;
 }
 
@@ -611,7 +685,7 @@ function onSortDone(){
   setPhase('sorted');
   if(state.mode === 'demo'){
     $('#statusText').textContent = 'Demo finished. Choose a folder to sort your own files.';
-    toast('That was the demo with fake photos. Nothing moves until you confirm.', {label:'Choose folder', fn:chooseFolder});
+    toast('That was the demo with fake files. Nothing moves until you confirm.', {label:'Choose folder', fn:chooseFolder});
   } else if(state.mode === 'folder' && !state.organised && !state.asked){
     state.asked = true; setTimeout(openModal, 550);
   }
@@ -635,8 +709,8 @@ function onReturnDone(){ setPhase('ready'); setTimeout(startSort, 300); }
 function runDemo(){
   state.scanToken++;
   Object.assign(state, {mode:'demo', root:null, organised:false, asked:false});
-  setFolderName('Pictures'); setCenter(null);
-  state.items = buildDemoItems(); setStats(); buildPile();
+  setFolderName(MODES[state.sortMode].demoName); setCenter(null);
+  state.items = buildDemoItems(); applyCats(); setStats(); buildPile();
   $('#statusText').textContent = `Demo: ${fmt(state.items.length)} fake files. Press Space to sort.`;
   setPhase('ready');
 }
@@ -671,21 +745,21 @@ async function loadFolder(root){
     await pool(toHash, 2, async it => { if(!alive()) return; it.hash = await sha256(await it.handle.getFile()); hd++; setCenter('Checking for duplicates…', `${fmt(hd)} / ${fmt(toHash.length)} same-size files`, hd/toHash.length); });
     if(!alive()) return;
     const seen = new Map();
-    for(const it of items) if(it.hash){ if(seen.has(it.hash)){ it.cat = 'dupes'; it.dupeOf = seen.get(it.hash); } else seen.set(it.hash, it); }
+    for(const it of items) if(it.hash){ if(seen.has(it.hash)){ it.dupe = true; it.dupeOf = seen.get(it.hash); } else seen.set(it.hash, it); }
     // classify
-    const work = items.filter(i => !i.cat); let done = 0;
+    const work = items.filter(i => !i.dupe); let done = 0;
     await pool(work, 4, async it => {
       if(!alive()) return;
       try{
         if(it.kind === 'image') await analyseImage(it);
         else if(it.kind === 'video') await analyseVideo(it);
-        else { it.cat = 'docs'; it.thumb = tileThumb(it.ext.toUpperCase() || 'FILE', DOC_COLORS[it.ext] || '#9C98C4'); }
-      }catch(e){ it.cat = it.kind === 'video' ? 'broll' : it.kind === 'image' ? 'everyday' : 'docs'; it.thumb = tileThumb(it.ext.toUpperCase(), '#87867F'); }
+        else { it.mediaCat = 'docs'; it.thumb = extTile(it.ext); }
+      }catch(e){ it.mediaCat = it.kind === 'video' ? 'broll' : it.kind === 'image' ? 'everyday' : 'docs'; it.thumb = extTile(it.ext); }
       done++; setCenter('Looking at your files…', `${fmt(done)} / ${fmt(work.length)}`, done/work.length);
     });
     if(!alive()) return;
-    for(const it of items) if(it.cat === 'dupes') it.thumb = it.dupeOf.thumb;
-    state.items = items; setStats(); setCenter(null); buildPile();
+    for(const it of items){ it.fileCat = fileCategory(it.ext); if(it.dupe){ it.thumb = it.dupeOf.thumb; it.mediaCat = it.dupeOf.mediaCat; } }
+    state.items = items; applyCats(); setStats(); setCenter(null); buildPile();
     $('#statusText').textContent = `${fmt(items.length)} files read from “${root.name}”. Nothing has moved yet.`;
     setPhase('ready');
   }catch(e){
@@ -806,7 +880,10 @@ async function undo(){
 }
 
 /* ───────────── Wiring ───────────── */
-buildCards();
+let savedMode = 'media';
+try{ savedMode = localStorage.getItem('photo-sorter-mode') || 'media'; }catch{}
+useMode(MODES[savedMode] ? savedMode : 'media');
+for(const b of document.querySelectorAll('.seg button')) b.addEventListener('click', () => { b.blur(); switchMode(b.dataset.mode); });
 $('#btnChoose').onclick = chooseFolder;
 $('#btnDemo').onclick = runDemo;
 $('#btnReplay').onclick = replay;
@@ -825,6 +902,8 @@ addEventListener('keydown', e => {
   if(e.ctrlKey || e.metaKey || e.altKey) return;
   if(e.code === 'Space'){ e.preventDefault(); startSort(); }
   else if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); replay(); }
+  else if(e.key === '1') switchMode('media');
+  else if(e.key === '2') switchMode('files');
 });
 runDemo();
 requestAnimationFrame(frame);
