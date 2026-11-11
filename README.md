@@ -47,7 +47,7 @@ A built-in **Demo** with 461 fake files loads at start-up. It has procedurally d
 | Videos | **Quick clips** | under 10 s | `Videos/Quick clips` |
 | Videos | **B-roll** | 10–60 s (or duration unreadable) | `Videos/B-roll` |
 | Videos | **Long takes** | 60 s and longer | `Videos/Long takes` |
-| Cleanup | **Duplicates** | byte-identical to an earlier file (SHA-256) | `Duplicates` |
+| Cleanup | **Duplicates** | byte-identical to another file (SHA-256); the original-looking one stays | `Duplicates` |
 | Cleanup | **Docs & other** | anything that isn't an image or video | `Docs & other` |
 
 ### 📄 Files mode
@@ -65,14 +65,14 @@ A built-in **Demo** with 461 fake files loads at start-up. It has procedurally d
 | Media | **Audio** | mp3, wav, m4a, aac, flac, ogg, opus, aiff, mid … | `Audio` |
 | Other | **Archives** | zip, rar, 7z, tar, gz, bz2, xz, iso, alz, egg … | `Archives` |
 | Other | **Installers & apps** | exe, msi, dmg, pkg, apk, appx, deb, rpm, bat, jar … | `Installers & apps` |
-| Other | **Duplicates** | byte-identical to an earlier file (SHA-256) | `Duplicates` |
+| Other | **Duplicates** | byte-identical to another file (SHA-256); the original-looking one stays | `Duplicates` |
 | Other | **Everything else** | unknown or missing extension | `Other` |
 
 ## Features
 
 - 🔀 **Two modes, one scan:** the **Images | Files** toggle (keys `1` / `2`) switches between colour/length sorting and extension sorting. Cards, stats labels, destination folders and the Organise dialog all follow the mode. Your choice is remembered in `localStorage`.
 - 🗂️ **Real folder sorting:** File System Access API with read/write access. Only top-level files are used, so subfolders (including the app's own output) are never touched.
-- 🧬 **Exact duplicate detection:** files are grouped by size first, and only same-size files are SHA-256 hashed (Web Crypto). The first file by name stays as the original.
+- 🧬 **Exact duplicate detection:** files are grouped by size first, and only same-size files are SHA-256 hashed (Web Crypto). In each identical group, the file that looks most like the original stays where it is. A clean name wins over `(1)`, ` 2`, `copy`, `복사본` and similar; after that, the oldest file, then the shortest name. Every other copy goes to Duplicates.
 - 🧾 **Extension classifier (Files mode):** about 200 extensions mapped to 11 type categories, plus Duplicates and Everything else. No decoding is needed to classify.
 - 🎨 **Colour-based photo classifier (Images mode):** each image is downscaled to 40 px wide. Luma, saturation, warm/blue share, flatness, centre skin share and aspect ratio feed six ordered rules.
 - 🎞️ **Video duration buckets (Images mode):** hidden `<video preload="metadata">` reads the duration and grabs a frame for the thumbnail.
@@ -157,8 +157,8 @@ flowchart TD
 | # | Step | Function | Notes |
 |---|---|---|---|
 | 1 | Pick folder | `chooseFolder()` | `showDirectoryPicker({mode:'readwrite'})`. Cancelling is silent. |
-| 2 | List files | `loadFolder()` | Files only, natural sort (`IMG_2` before `IMG_10`). |
-| 3 | Duplicates | `sha256()` | Only same-size groups, 2 hashes in parallel. Files over 768 MB hash the first 16 MB + last 16 MB + size. |
+| 2 | List files | `loadFolder()` | Files only, natural sort (`IMG_2` before `IMG_10`). Size and modified time are read per file. A file that can't be opened (in use, cloud-only placeholder) is kept as *unreadable* instead of failing the scan. |
+| 3 | Duplicates | `sha256()`, `originalFirst()` | Only same-size groups, 2 hashes in parallel. Files over 768 MB hash the first 16 MB + last 16 MB + size. Identical files are grouped, and `originalFirst()` picks which one stays. A hashing error affects only that file. |
 | 4 | Analyse | `analyseImage()`, `analyseVideo()` | 4 in parallel via `pool()`. Progress shows on the stage. |
 | 4b | Pick mode categories | `applyCats()` | `item.cat` = `dupes` if duplicate, else `mediaCat` (Images) or `fileCat` (Files). |
 | 5 | Build pile | `buildPile()` | One sprite per file, up to 600 (sampled proportionally beyond that). |
@@ -175,13 +175,30 @@ Every async scan step checks a `scanToken`, so starting a new scan or the Demo q
 
 Both modes are **rule-based, not AI**.
 
+### Duplicates (both modes)
+
+```
+group files by size                      // different size → can't be identical
+hash every file in a same-size group     // SHA-256, Web Crypto
+group by hash → for each group of 2+:
+    sort with originalFirst():
+        1. name doesn't look like a copy   ("IMG_1.jpg" beats "IMG_1 2.jpg", "report (1).pdf", "a - Copy.txt", "사진 복사본.jpg")
+        2. older last-modified time
+        3. shorter name
+        4. natural name order
+    first  → stays in its normal category
+    others → Duplicates
+```
+
+Empty (0-byte) files are never treated as duplicates.
+
 ### Files mode (`fileCategory`)
 
 The lower-cased extension (text after the last `.`) is looked up in `FILE_EXT_CAT`, a `Map` built from the `ext` lists in `FILE_CATS`. Anything not found, or a file with no extension, goes to **Everything else**. Duplicates are found first by SHA-256 and override the extension category. Images and videos are still decoded once, but only to draw their real thumbnails. Every other file gets a generated tile coloured like its category.
 
 ### Images mode
 
-The Images-mode classifier is fast and predictable. That makes it fast and predictable, but it can't recognise content such as "food" or "pets".
+The Images-mode classifier is fast and predictable, but it can't recognise content such as "food" or "pets".
 
 ### Pixel metrics (`analysePixels`)
 
@@ -236,7 +253,7 @@ For content-aware categories, replace `classifyPhoto()` with an in-browser visio
 ## Animation Engine
 
 - **Sprites:** absolutely positioned `.sprite` polaroids inside a fixed, full-viewport overlay (`pointer-events: none`), so they can fly from the stage to any card.
-- **Pile (`pilePos`):** a Vogel sunflower spiral.
+- **Pile (`pilePos`):** a Vogel sunflower spiral. Sprite size is `Rmax·2/√N · 1.15`, clamped to 14–52 px under 120 files and 14–36 px above. The radius shrinks for small folders (`size·√N·0.62`), so 30 files form a compact heap instead of a sparse ring.
   `r = R·√k`, `angle = i·137.5° + θ`, `y` squashed by `TILT = 0.86`, with a slight dome toward the centre.
   `θ` grows by `SPIN` each frame (≈ one turn per 57 s). The centre and front sprites sit on top. Sprites pop in with `easeOutBack` and bob gently.
 - **Launch schedule (`startSort`):** sprite *k* of *N* launches at `150 ms + L·(k/N)^0.55`, with `L = clamp(3800 + 3N, 4200, 5800) ms`. Early launches are sparse and later ones come in a rush. Flight time shrinks from 1150 ms to 620 ms.
@@ -317,10 +334,15 @@ Either way, the card, counter, flight target, dialog row and destination folder 
 - **Copy never removes anything.** Undo of a copy deletes only the app's own copy, and only if the original still exists with the same size.
 - **Scoped access:** only top-level files of the chosen folder are read or written. Nothing happens on disk until you press Move or Copy. The Demo never writes.
 - **Precise Undo:** removes only folders this run **created**, deepest first, non-recursively. Any non-empty or pre-existing folder is kept.
-- **Fault isolation:** each file runs in its own `try/catch`. Failures are counted in the status bar and logged to the console.
+- **Fault isolation:** reading, hashing, decoding and organising each run per file. One locked, cloud-only or corrupt file is skipped and reported (status bar and console). It never aborts the scan or the Move/Copy run. The video probe always resolves, even when a file can't be opened.
 - **Stale-scan protection:** a `scanToken` cancels superseded scans.
 - **Privacy:** there are no `fetch` calls, analytics or keys. The only network request is Google Fonts, which is optional; remove the `<link>` tags for a fully offline file.
-- **Verified:** the script passes `node --check`. The Demo was run end-to-end in headless Chrome, and every card counter matched its expected total.
+- **Verified:**
+  - The script passes `node --check`.
+  - The Demo (461 files) was sorted end-to-end in headless Chrome in both modes, and every card counter matched its expected total.
+  - A real directory handle (Chrome OPFS) was tested with 35 files. They included real JPEG/PNG/WebP images, ffmpeg-generated MP4/MOV videos, documents, code, archives, installers, audio, a broken HEIC, an extension-less file, a Korean filename, an upper-case extension, empty files, duplicates, a subfolder and a pre-existing destination file.
+  - **Move**, **Copy** and **Move without native `move()`** all put every file in the right folder. A name clash became `UPPER (1).PDF` and the existing file was untouched. **Undo** restored the exact original file list each time.
+  - The only parts not exercised automatically are the native folder picker and permission prompt, which need a human click.
 
 ## Project Structure
 
